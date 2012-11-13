@@ -60,9 +60,9 @@ efficient for processing large directories.
 
 And `iterdir_stat()` is similar, except it yields tuples of `(filename,
 stat_result)`, where `stat_result` is a tuple-like structure [as returned by
-`os.stat()`](http://docs.python.org/2/library/os.html#os.stat). However, just
-like `stat()`, the values returned are implementation dependent, and `st_`
-fields that the system doesn't know are set to `None`.
+os.stat()](http://docs.python.org/2/library/os.html#os.stat). However, just
+like `stat()`, the values returned are implementation dependent. Further,
+`st_` fields that `iterdir_stat()` doesn't know are set to `None`.
 
 So here's a good usage pattern for `iterdir_stat`. This is in fact very
 similar to how the faster `os.walk()` implementation works:
