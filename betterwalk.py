@@ -1,64 +1,60 @@
-"""Speed up os.walk() significantly by using file attributes that
-FindFirst/Next give us instead of doing an extra stat(). Can also do the same
-thing with opendir/readdir on Linux.
+"""BetterWalk, a better and faster os.walk() for Python.
 
-This is doubly useful when the user (caller of os.walk) is doing *another*
-stat() to get say the file sizes.
+BetterWalk is a somewhat better and significantly faster version of Python's
+os.walk(), as well as a generator version of os.listdir(). See README.md or
+https://github.com/benhoyt/betterwalk for rationale and documentation.
 
-On my tests (Windows 64-bit) our walk() is about 5x as fast as os.walk() for
-large directory trees, and 9x as fast if you're doing the file size thing.
-Note that these timings are "once it's in the cache", not first-time timings.
-
-Other advantages to using FindFirst/Next:
-
-* You can write a version of listdir() which yield results rather than getting
-  all filenames at once -- better for "streaming" large directories.
-
-* You can use its built-in wildcard matching (globbing), which is presumably
-  faster than getting all filenames and calling fnmatch on the result. (This one
-  you couldn't do with opendir/readdir.)
-
-This isn't just me who noticed these were issues. See also:
-
-http://stackoverflow.com/questions/2485719/very-quickly-getting-total-size-of-folder
-http://stackoverflow.com/questions/4403598/list-files-in-a-folder-as-a-stream-to-begin-process-immediately
-http://bugs.python.org/issue15200 -- Titled "Faster os.walk", but actually unrelated
+BetterWalk is released under the new BSD 3-clause license. See LICENSE.txt for
+the full license text.
 
 """
-
 
 import ctypes
 import os
 import stat
 
+__version__ = '0.5'
+__all__ = ['iterdir', 'iterdir_stat', 'walk']
+
+# Windows implementation
 if os.name == 'nt':
     from ctypes import wintypes
 
+    # Various constants from windows.h
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
     ERROR_FILE_NOT_FOUND = 2
     ERROR_NO_MORE_FILES = 18
     FILE_ATTRIBUTE_DIRECTORY = 16
     FILE_ATTRIBUTE_READONLY = 1
-    SECONDS_BETWEEN_EPOCHS = 11644473600  # seconds between 1601-01-01 and 1970-01-01
+
+    # Numer of seconds between 1601-01-01 and 1970-01-01
+    SECONDS_BETWEEN_EPOCHS = 11644473600
 
     kernel32 = ctypes.windll.kernel32
 
-    _FindFirstFile = kernel32.FindFirstFileW
-    _FindFirstFile.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.WIN32_FIND_DATAW)]
-    _FindFirstFile.restype = wintypes.HANDLE
+    FindFirstFile = kernel32.FindFirstFileW
+    FindFirstFile.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(wintypes.WIN32_FIND_DATAW),
+    ]
+    FindFirstFile.restype = wintypes.HANDLE
 
-    _FindNextFile = kernel32.FindNextFileW
-    _FindNextFile.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.WIN32_FIND_DATAW)]
-    _FindNextFile.restype = wintypes.BOOL
+    FindNextFile = kernel32.FindNextFileW
+    FindNextFile.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.WIN32_FIND_DATAW),
+    ]
+    FindNextFile.restype = wintypes.BOOL
 
-    _FindClose = kernel32.FindClose
-    _FindClose.argtypes = [wintypes.HANDLE]
-    _FindClose.restype = wintypes.BOOL
+    FindClose = kernel32.FindClose
+    FindClose.argtypes = [wintypes.HANDLE]
+    FindClose.restype = wintypes.BOOL
 
-    def _attributes_to_mode(attributes):
-        """Convert Win32 dwFileAttributes to st_mode. Taken from CPython's
-        Modules/posixmodule.c.
-        """
+    # The conversion functions below are taken more or less straight from
+    # CPython's Modules/posixmodule.c
+
+    def attributes_to_mode(attributes):
+        """Convert Win32 dwFileAttributes to st_mode."""
         mode = 0
         if attributes & FILE_ATTRIBUTE_DIRECTORY:
             mode |= stat.S_IFDIR | 0111
@@ -70,32 +66,34 @@ if os.name == 'nt':
             mode |= 0666
         return mode
 
-    def _filetime_to_time(filetime):
+    def filetime_to_time(filetime):
+        """Convert Win32 FILETIME to time since Unix epoch in seconds."""
         total = filetime.dwHighDateTime << 32 | filetime.dwLowDateTime
         return total / 10000000.0 - SECONDS_BETWEEN_EPOCHS
 
-    def _find_data_to_stat(data):
-        st_mode = _attributes_to_mode(data.dwFileAttributes)
+    def find_data_to_stat(data):
+        """Convert Win32 FIND_DATA struct to stat_result."""
+        st_mode = attributes_to_mode(data.dwFileAttributes)
         st_ino = 0
         st_dev = 0
         st_nlink = 0
         st_uid = 0
         st_gid = 0
         st_size = data.nFileSizeHigh << 32 | data.nFileSizeLow
-        st_atime = _filetime_to_time(data.ftLastAccessTime)
-        st_mtime = _filetime_to_time(data.ftLastWriteTime)
-        st_ctime = _filetime_to_time(data.ftCreationTime)
-        st = os.stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid, st_gid,
-                             st_size, st_atime, st_mtime, st_ctime))
+        st_atime = filetime_to_time(data.ftLastAccessTime)
+        st_mtime = filetime_to_time(data.ftLastWriteTime)
+        st_ctime = filetime_to_time(data.ftCreationTime)
+        st = os.stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid,
+                             st_gid, st_size, st_atime, st_mtime, st_ctime))
         return st
 
-    def listdir_stat(dirname='.', glob=None):
-        dirname = os.path.abspath(dirname)
-        filename = os.path.join(dirname, glob or '*')
+    def iterdir_stat(path='.'):
+        path = os.path.abspath(path)
+        filename = os.path.join(path, '*')
 
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
-        handle = _FindFirstFile(filename, data_p)
+        handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
             if error == ERROR_FILE_NOT_FOUND:
@@ -105,16 +103,16 @@ if os.name == 'nt':
         try:
             while True:
                 if data.cFileName not in ('.', '..'):
-                    st = _find_data_to_stat(data)
+                    st = find_data_to_stat(data)
                     yield (data.cFileName, st)
-                success = _FindNextFile(handle, data_p)
+                success = FindNextFile(handle, data_p)
                 if not success:
                     error = ctypes.GetLastError()
                     if error == ERROR_NO_MORE_FILES:
                         break
                     raise ctypes.WinError()
         finally:
-            if not _FindClose(handle):
+            if not FindClose(handle):
                 raise ctypes.WinError()
 
 
@@ -177,9 +175,17 @@ else:
             _closedir(dir_p)
 
 
+def iterdir(path='.'):
+    """Like os.listdir(), but yield filenames as we get them, instead of
+    returning them all at once in a list.
+    """
+    for filename, stat_result in iterdir_stat(path):
+        yield filename
+
+
 def walk(top):
     try:
-        names_stats = list(listdir_stat(top))
+        names_stats = iterdir_stat(top)
     except OSError:
         return
 
@@ -202,9 +208,11 @@ if __name__ == '__main__':
     import sys
     import time
 
+    path = sys.argv[1] if len(sys.argv) > 1 else '.'
+
     size = 0
     time0 = time.clock()
-    for root, dirs, files in walk('.'):
+    for root, dirs, files in walk(path):
         for file, st in files:
             size += st.st_size
             pass
@@ -213,7 +221,7 @@ if __name__ == '__main__':
 
     time0 = time.clock()
     size = 0
-    for root, dirs, files in os.walk('.'):
+    for root, dirs, files in os.walk(path):
         for file in files:
             size += os.path.getsize(os.path.join(root, file))
             pass
