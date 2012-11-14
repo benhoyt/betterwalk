@@ -225,9 +225,10 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     # The structure of this function is copied directly from Python 2.7's
     # version of os.walk()
 
-    # First get an iterator over the directory using iterdir_stat
+    # First get a list of all filenames/stat_results in the directory. We
+    # could try to keep this an iterator, but error handling gets messy.
     try:
-        names_stats_iter = iterdir_stat(top)
+        names_stats = list(iterdir_stat(top))
     except OSError, err:
         if onerror is not None:
             onerror(err)
@@ -237,7 +238,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     dirs = []
     dir_stats = []
     nondirs = []
-    for name, st in names_stats_iter:
+    for name, st in names_stats:
         if st.st_mode is None:
             st = os.stat(os.path.join(top, name))
         if stat.S_ISDIR(st.st_mode):
