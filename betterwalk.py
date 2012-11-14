@@ -90,22 +90,40 @@ if os.name == 'nt':
         return st
 
     def iterdir_stat(path='.'):
+        """Yield tuples of (filename, stat_result) for each filename in
+        directory given by "path". Like listdir(), '.' and '..' are skipped.
+        The values are yielded in system-dependent order.
+        
+        Each stat_result is an object like you'd get by calling os.stat() on
+        that file, but not all information is present on all systems, and st_*
+        fields that are not available will be None.
+
+        In practice, stat_result is a full os.stat() on Windows, but only the
+        "is type" bits of the st_mode field are available on Linux/BSD/OS X.
+        """
+        # Note that Windows doesn't need *.* anymore, just *
         filename = os.path.join(path, '*')
 
+        # Call FindFirstFile and errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
             if error == ERROR_FILE_NOT_FOUND:
+                # No files, don't yield anything
                 return
             raise ctypes.WinError()
 
+        # Call FindNextFile in a loop, stopping when no more files
         try:
             while True:
+                # Skip '.' and '..' (current and parent directory), but
+                # otherwise yield (filename, stat_result) tuple
                 if data.cFileName not in ('.', '..'):
                     st = find_data_to_stat(data)
                     yield (data.cFileName, st)
+
                 success = FindNextFile(handle, data_p)
                 if not success:
                     error = ctypes.GetLastError()
@@ -184,25 +202,34 @@ def iterdir(path='.'):
         yield filename
 
 
-def walk(top):
+def walk(top, topdown=True, onerror=None, followlinks=False):
+    """Just like os.walk(), but faster, as it uses iterdir_stat internally."""
     try:
         names_stats = iterdir_stat(top)
-    except OSError:
+    except OSError, err:
+        if onerror is not None:
+            onerror(err)
         return
 
     dirs, nondirs = [], []
     for name, st in names_stats:
+        if st.st_mode is None:
+            st = os.stat(os.path.join(top, name))
         if stat.S_ISDIR(st.st_mode):
-            dirs.append((name, st))
+            dirs.append(name)
         else:
-            nondirs.append((name, st))
+            nondirs.append(name)
 
-    yield top, dirs, nondirs
-
-    for name, st in dirs:
+    if topdown:
+        yield top, dirs, nondirs
+    for name in dirs:
         new_path = os.path.join(top, name)
-        for x in walk(new_path):
+        # TODO: if followlinks or not islink(new_path):
+        for x in walk(new_path, topdown, onerror, followlinks):
             yield x
+    if not topdown:
+        yield top, dirs, nondirs
+
 
 if __name__ == '__main__':
     import datetime
@@ -211,22 +238,16 @@ if __name__ == '__main__':
 
     path = sys.argv[1] if len(sys.argv) > 1 else '.'
 
-    size = 0
     time0 = time.clock()
     for root, dirs, files in walk(path):
-        for file, st in files:
-            size += st.st_size
-            pass
+        pass
     elapsed1 = time.clock() - time0
-    print('our walk', elapsed1, size)
+    print('our walk', elapsed1)
 
     time0 = time.clock()
-    size = 0
     for root, dirs, files in os.walk(path):
-        for file in files:
-            size += os.path.getsize(os.path.join(root, file))
-            pass
+        pass
     elapsed2 = time.clock() - time0
-    print('os.walk', elapsed2, size)
+    print('os.walk', elapsed2)
 
     print('ours was', elapsed2 / elapsed1, 'times faster')
