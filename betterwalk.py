@@ -229,7 +229,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     # could try to keep this an iterator, but error handling gets messy.
     try:
         names_stats = list(iterdir_stat(top))
-    except OSError, err:
+    except OSError as err:
         if onerror is not None:
             onerror(err)
         return
