@@ -12,12 +12,15 @@ the full license text.
 import ctypes
 import os
 import stat
+import sys
+
 
 __version__ = '0.5'
 __all__ = ['iterdir', 'iterdir_stat', 'walk']
 
+
 # Windows implementation
-if os.name == 'nt':
+if sys.platform == 'win32':
     from ctypes import wintypes
 
     # Various constants from windows.h
@@ -93,17 +96,7 @@ if os.name == 'nt':
         return st
 
     def iterdir_stat(path='.'):
-        """Yield tuples of (filename, stat_result) for each filename in
-        directory given by "path". Like listdir(), '.' and '..' are skipped.
-        The values are yielded in system-dependent order.
-        
-        Each stat_result is an object like you'd get by calling os.stat() on
-        that file, but not all information is present on all systems, and st_*
-        fields that are not available will be None.
-
-        In practice, stat_result is a full os.stat() on Windows, but only the
-        "is type" bits of the st_mode field are available on Linux/BSD/OS X.
-        """
+        """See iterdir_stat.__doc__ below for docstring."""
         # Note that Windows doesn't need *.* anymore, just *
         filename = os.path.join(path, '*')
 
@@ -138,9 +131,8 @@ if os.name == 'nt':
                 raise ctypes.WinError()
 
 
-# Linux/BSD -- this is only half-tested and doesn't work at the moment, but
-# leaving here for future use
-else:
+# Linux, OS X, and BSD implementation
+elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
     import ctypes
     import ctypes.util
 
@@ -182,8 +174,9 @@ else:
                              None, None, None, None))
         return st
 
-    def listdir_stat(dirname='.', glob=None):
-        dir_p = _opendir(dirname)
+    def iterdir_stat(path='.'):
+        """See iterdir_stat.__doc__ below for docstring."""
+        dir_p = _opendir(path)
         try:
             while True:
                 p = _readdir(dir_p)
@@ -197,9 +190,31 @@ else:
             _closedir(dir_p)
 
 
+# Some other system -- have to fall back to using os.listdir() and os.stat()
+else:
+    def iterdir_stat(path='.'):
+        for name in os.listdir(path):
+            st = os.stat(os.path.join(path, name))
+            yield (name, st)
+
+
+iterdir_stat.__doc__ = \
+"""Yield tuples of (filename, stat_result) for each filename in directory
+given by "path". Like listdir(), '.' and '..' are skipped. The values are
+yielded in system-dependent order.
+
+Each stat_result is an object like you'd get by calling os.stat() on that
+file, but not all information is present on all systems, and st_* fields that
+are not available will be None.
+
+In practice, stat_result is a full os.stat() on Windows, but only the "is
+type" bits of the st_mode field are available on Linux/OS X/BSD.
+"""
+
+
 def iterdir(path='.'):
-    """Like os.listdir(), but yield filenames as we get them, instead of
-    returning them all at once in a list.
+    """Like os.listdir(), but yield filenames from given path as we get them,
+    instead of returning them all at once in a list.
     """
     for filename, stat_result in iterdir_stat(path):
         yield filename
@@ -207,6 +222,9 @@ def iterdir(path='.'):
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
     """Just like os.walk(), but faster, as it uses iterdir_stat internally."""
+    # The structure of this function is copied directly from Python 2.7's
+    # version of os.walk()
+
     # First get an iterator over the directory using iterdir_stat
     try:
         names_stats_iter = iterdir_stat(top)
@@ -242,25 +260,3 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     # Yield before recursion if going bottom up
     if not topdown:
         yield top, dirs, nondirs
-
-
-if __name__ == '__main__':
-    import datetime
-    import sys
-    import time
-
-    path = sys.argv[1] if len(sys.argv) > 1 else '.'
-
-    time0 = time.clock()
-    for root, dirs, files in walk(path):
-        pass
-    elapsed1 = time.clock() - time0
-    print('our walk', elapsed1)
-
-    time0 = time.clock()
-    for root, dirs, files in os.walk(path):
-        pass
-    elapsed2 = time.clock() - time0
-    print('os.walk', elapsed2)
-
-    print('ours was', elapsed2 / elapsed1, 'times faster')
