@@ -32,6 +32,8 @@ if os.name == 'nt':
 
     kernel32 = ctypes.windll.kernel32
 
+    # ctypes wrappers for (wide string versions of) FindFirstFile,
+    # FindNextFile, and FindClose
     FindFirstFile = kernel32.FindFirstFileW
     FindFirstFile.argtypes = [
         wintypes.LPCWSTR,
@@ -57,13 +59,13 @@ if os.name == 'nt':
         """Convert Win32 dwFileAttributes to st_mode."""
         mode = 0
         if attributes & FILE_ATTRIBUTE_DIRECTORY:
-            mode |= stat.S_IFDIR | 0111
+            mode |= stat.S_IFDIR | 0o111
         else:
             mode |= stat.S_IFREG
         if attributes & FILE_ATTRIBUTE_READONLY:
-            mode |= 0444
+            mode |= 0o444
         else:
-            mode |= 0666
+            mode |= 0o666
         return mode
 
     def filetime_to_time(filetime):
@@ -116,7 +118,7 @@ if os.name == 'nt':
                 raise ctypes.WinError()
 
 
-# Linux/posix -- this is only half-tested and doesn't work at the moment, but
+# Linux/BSD -- this is only half-tested and doesn't work at the moment, but
 # leaving here for future use
 else:
     import ctypes
@@ -153,7 +155,7 @@ else:
 
     def _type_to_stat(d_type):
         if d_type == DT_DIR:
-            st_mode = stat.S_IFDIR | 0111
+            st_mode = stat.S_IFDIR | 0o111
         else:
             st_mode = stat.S_IFREG
         st = os.stat_result((st_mode, None, None, None, None, None,
@@ -217,7 +219,7 @@ if __name__ == '__main__':
             size += st.st_size
             pass
     elapsed1 = time.clock() - time0
-    print 'our walk', elapsed1, size
+    print('our walk', elapsed1, size)
 
     time0 = time.clock()
     size = 0
@@ -226,6 +228,6 @@ if __name__ == '__main__':
             size += os.path.getsize(os.path.join(root, file))
             pass
     elapsed2 = time.clock() - time0
-    print 'os.walk', elapsed2, size
+    print('os.walk', elapsed2, size)
 
-    print 'ours was', elapsed2 / elapsed1, 'times faster'
+    print('ours was', elapsed2 / elapsed1, 'times faster')
