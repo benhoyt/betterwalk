@@ -15,6 +15,9 @@ def benchmark(path):
         for root, dirs, files in betterwalk.walk(path):
             pass
 
+    # Run this once first to cache things, so we're not benchmarking I/O
+    do_os_walk()
+
     print('Benchmarking walks on {0}'.format(path))
     os_walk_time = timeit.timeit(do_os_walk, number=1)
     betterwalk_time = timeit.timeit(do_betterwalk, number=1)
