@@ -90,7 +90,6 @@ if os.name == 'nt':
         return st
 
     def iterdir_stat(path='.'):
-        path = os.path.abspath(path)
         filename = os.path.join(path, '*')
 
         data = wintypes.WIN32_FIND_DATAW()
