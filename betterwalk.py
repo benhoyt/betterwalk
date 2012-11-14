@@ -24,8 +24,9 @@ if os.name == 'nt':
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
     ERROR_FILE_NOT_FOUND = 2
     ERROR_NO_MORE_FILES = 18
-    FILE_ATTRIBUTE_DIRECTORY = 16
     FILE_ATTRIBUTE_READONLY = 1
+    FILE_ATTRIBUTE_DIRECTORY = 16
+    FILE_ATTRIBUTE_REPARSE_POINT = 1024
 
     # Numer of seconds between 1601-01-01 and 1970-01-01
     SECONDS_BETWEEN_EPOCHS = 11644473600
@@ -66,6 +67,8 @@ if os.name == 'nt':
             mode |= 0o444
         else:
             mode |= 0o666
+        if attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+            mode |= stat.S_IFLNK
         return mode
 
     def filetime_to_time(filetime):
@@ -204,29 +207,39 @@ def iterdir(path='.'):
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
     """Just like os.walk(), but faster, as it uses iterdir_stat internally."""
+    # First get an iterator over the directory using iterdir_stat
     try:
-        names_stats = iterdir_stat(top)
+        names_stats_iter = iterdir_stat(top)
     except OSError, err:
         if onerror is not None:
             onerror(err)
         return
 
-    dirs, nondirs = [], []
-    for name, st in names_stats:
+    # Determine which are files and which are directories
+    dirs = []
+    dir_stats = []
+    nondirs = []
+    for name, st in names_stats_iter:
         if st.st_mode is None:
             st = os.stat(os.path.join(top, name))
         if stat.S_ISDIR(st.st_mode):
             dirs.append(name)
+            dir_stats.append(st)
         else:
             nondirs.append(name)
 
+    # Yield before recursion if going top down
     if topdown:
         yield top, dirs, nondirs
-    for name in dirs:
+
+    # Recurse into sub-directories, following symbolic links if "followlinks"
+    for name, st in zip(dirs, dir_stats):
         new_path = os.path.join(top, name)
-        # TODO: if followlinks or not islink(new_path):
-        for x in walk(new_path, topdown, onerror, followlinks):
-            yield x
+        if followlinks or not stat.S_ISLNK(st.st_mode):
+            for x in walk(new_path, topdown, onerror, followlinks):
+                yield x
+
+    # Yield before recursion if going bottom up
     if not topdown:
         yield top, dirs, nondirs
 
