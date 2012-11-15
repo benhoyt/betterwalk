@@ -14,10 +14,25 @@ import os
 import stat
 import sys
 
+# TODO: Reparse points / Win32 symbolic links need testing. From Random832:
+# http://mail.python.org/pipermail/python-ideas/2012-November/017794.html
+
+# In the presence of reparse points (i.e. symbolic links) on win32, I 
+# believe information about whether the destination is meant to be a 
+# directory is still provided (I haven't confirmed this, but I know you're 
+# required to provide it when making a symlink). This is discarded when 
+# the st_mode field is populated with the information that it is a 
+# symlink. If the goal is "speed up os.walk", it might be worth keeping 
+# this information and using it in os.walk(..., followlinks=True) - maybe 
+# the windows version of the stat result has a field for the windows 
+# attributes?
+
+# It's arguable, though, that symbolic links on windows are rare enough 
+# not to matter.
+
 
 __version__ = '0.5'
 __all__ = ['iterdir', 'iterdir_stat', 'walk']
-
 
 # Windows implementation
 if sys.platform == 'win32':
@@ -116,9 +131,10 @@ if sys.platform == 'win32':
             while True:
                 # Skip '.' and '..' (current and parent directory), but
                 # otherwise yield (filename, stat_result) tuple
-                if data.cFileName not in ('.', '..'):
+                name = data.cFileName
+                if name not in ('.', '..'):
                     st = find_data_to_stat(data)
-                    yield (data.cFileName, st)
+                    yield (name, st)
 
                 success = FindNextFile(handle, data_p)
                 if not success:
@@ -136,36 +152,37 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
     import ctypes
     import ctypes.util
 
-    class DIR(ctypes.Structure):
-        pass
-    DIR_p = ctypes.POINTER(DIR)
+    DIR_p = ctypes.c_void_p
 
+    # TODO: Linux version -- may be different on OS X etc?
     class dirent(ctypes.Structure):
         _fields_ = (
-            ('d_ino', ctypes.c_long),
+            ('d_ino', ctypes.c_ulong),
             ('d_off', ctypes.c_long),
             ('d_reclen', ctypes.c_ushort),
             ('d_type', ctypes.c_byte),
-            ('d_name', ctypes.c_char * 256)
+            ('d_name', ctypes.c_char * 256),
         )
     dirent_p = ctypes.POINTER(dirent)
+    dirent_pp = ctypes.POINTER(dirent_p)
 
-    _libc = ctypes.CDLL(ctypes.util.find_library('c'))
-    _opendir = _libc.opendir
-    _opendir.argtypes = [ctypes.c_char_p]
-    _opendir.restype = DIR_p
+    # TODO: test with unicode filenames
+    libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+    opendir = libc.opendir
+    opendir.argtypes = [ctypes.c_char_p]
+    opendir.restype = DIR_p
 
-    _readdir = _libc.readdir
-    _readdir.argtypes = [DIR_p]
-    _readdir.restype = dirent_p
+    readdir = libc.readdir_r
+    readdir.argtypes = [DIR_p, dirent_p, dirent_pp]
+    readdir.restype = ctypes.c_int
 
-    _closedir = _libc.closedir
-    _closedir.argtypes = [DIR_p]
-    _closedir.restype = ctypes.c_int
+    closedir = libc.closedir
+    closedir.argtypes = [DIR_p]
+    closedir.restype = ctypes.c_int
 
     DT_DIR = 4
 
-    def _type_to_stat(d_type):
+    def type_to_stat(d_type):
         if d_type == DT_DIR:
             st_mode = stat.S_IFDIR | 0o111
         else:
@@ -176,18 +193,24 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
 
     def iterdir_stat(path='.'):
         """See iterdir_stat.__doc__ below for docstring."""
-        dir_p = _opendir(path)
+        dir_p = opendir(path)
+        if not dir_p:
+            raise OSError('TODO: opendir error: {0}'.format(ctypes.get_errno()))
         try:
+            entry = dirent()
+            result = dirent_p()
             while True:
-                p = _readdir(dir_p)
-                if not p:
+                if readdir_r(dir_p, entry, result):
+                    raise OSError('TODO: readdir_r error: {0}'.format(ctypes.get_errno()))
+                if not result:
                     break
-                name = p.contents.d_name
+                name = entry.contents.d_name
                 if name not in ('.', '..'):
-                    st = _type_to_stat(p.contents.d_type)
+                    st = type_to_stat(p.contents.d_type)
                     yield (name, st)
         finally:
-            _closedir(dir_p)
+            if closedir(dir_p):
+                raise OSError('TODO: closedir error: {0}'.format(ctypes.get_errno()))
 
 
 # Some other system -- have to fall back to using os.listdir() and os.stat()
