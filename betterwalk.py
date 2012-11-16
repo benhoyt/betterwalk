@@ -172,9 +172,9 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
     opendir.argtypes = [ctypes.c_char_p]
     opendir.restype = DIR_p
 
-    readdir = libc.readdir_r
-    readdir.argtypes = [DIR_p, dirent_p, dirent_pp]
-    readdir.restype = ctypes.c_int
+    readdir_r = libc.readdir_r
+    readdir_r.argtypes = [DIR_p, dirent_p, dirent_pp]
+    readdir_r.restype = ctypes.c_int
 
     closedir = libc.closedir
     closedir.argtypes = [DIR_p]
@@ -204,9 +204,9 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                     raise OSError('TODO: readdir_r error: {0}'.format(ctypes.get_errno()))
                 if not result:
                     break
-                name = entry.contents.d_name
+                name = entry.d_name
                 if name not in ('.', '..'):
-                    st = type_to_stat(p.contents.d_type)
+                    st = type_to_stat(entry.d_type)
                     yield (name, st)
         finally:
             if closedir(dir_p):
