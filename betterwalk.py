@@ -221,17 +221,18 @@ else:
             yield (name, st)
 
 
-iterdir_stat.__doc__ = \
-"""Yield tuples of (filename, stat_result) for each filename in directory
-given by "path". Like listdir(), '.' and '..' are skipped. The values are
-yielded in system-dependent order.
+iterdir_stat.__doc__ = """
+Yield tuples of (filename, stat_result) for each filename in directory given
+by "path". Like listdir(), '.' and '..' are skipped. The values are yielded in
+system-dependent order.
 
 Each stat_result is an object like you'd get by calling os.stat() on that
 file, but not all information is present on all systems, and st_* fields that
 are not available will be None.
 
-In practice, stat_result is a full os.stat() on Windows, but only the "is
-type" bits of the st_mode field are available on Linux/OS X/BSD.
+In practice, stat_result is a full os.stat() on Windows; on POSIX systems, if
+st_mode is not None only the type bits are valid (which is the case for Linux,
+Mac OS X, and BSD).
 """
 
 
