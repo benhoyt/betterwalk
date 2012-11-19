@@ -16,7 +16,7 @@ def benchmark(path):
             pass
 
     # Run this once first to cache things, so we're not benchmarking I/O
-    do_os_walk()
+    do_betterwalk()
 
     print('Benchmarking walks on {0}'.format(path))
     os_walk_time = timeit.timeit(do_os_walk, number=1)

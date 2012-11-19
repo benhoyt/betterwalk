@@ -10,28 +10,34 @@ the full license text.
 """
 
 import ctypes
+import fnmatch
 import os
 import stat
 import sys
 
+# TODO: test and benchmark with atimes turned off, on other Windows systems,
+# Windows 8, networked files, etc
+
 # TODO: Reparse points / Win32 symbolic links need testing. From Random832:
 # http://mail.python.org/pipermail/python-ideas/2012-November/017794.html
 
-# In the presence of reparse points (i.e. symbolic links) on win32, I 
-# believe information about whether the destination is meant to be a 
-# directory is still provided (I haven't confirmed this, but I know you're 
-# required to provide it when making a symlink). This is discarded when 
-# the st_mode field is populated with the information that it is a 
-# symlink. If the goal is "speed up os.walk", it might be worth keeping 
-# this information and using it in os.walk(..., followlinks=True) - maybe 
-# the windows version of the stat result has a field for the windows 
+# In the presence of reparse points (i.e. symbolic links) on win32, I
+# believe information about whether the destination is meant to be a
+# directory is still provided (I haven't confirmed this, but I know you're
+# required to provide it when making a symlink). This is discarded when
+# the st_mode field is populated with the information that it is a
+# symlink. If the goal is "speed up os.walk", it might be worth keeping
+# this information and using it in os.walk(..., followlinks=True) - maybe
+# the windows version of the stat result has a field for the windows
 # attributes?
 
-# It's arguable, though, that symbolic links on windows are rare enough 
+# It's arguable, though, that symbolic links on windows are rare enough
 # not to matter.
 
+# TODO: error handling, WindowsError with filename
 
-__version__ = '0.5'
+
+__version__ = '0.6'
 __all__ = ['iterdir', 'iterdir_stat', 'walk']
 
 # Windows implementation
@@ -97,27 +103,36 @@ if sys.platform == 'win32':
     def find_data_to_stat(data):
         """Convert Win32 FIND_DATA struct to stat_result."""
         st_mode = attributes_to_mode(data.dwFileAttributes)
+        st_size = data.nFileSizeHigh << 32 | data.nFileSizeLow
+        st_atime = filetime_to_time(data.ftLastAccessTime)
+        st_mtime = filetime_to_time(data.ftLastWriteTime)
+        st_ctime = filetime_to_time(data.ftCreationTime)
+        # These are set to zero rather than None, per CPython's posixmodule.c
         st_ino = 0
         st_dev = 0
         st_nlink = 0
         st_uid = 0
         st_gid = 0
-        st_size = data.nFileSizeHigh << 32 | data.nFileSizeLow
-        st_atime = filetime_to_time(data.ftLastAccessTime)
-        st_mtime = filetime_to_time(data.ftLastWriteTime)
-        st_ctime = filetime_to_time(data.ftCreationTime)
-        st = os.stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid,
-                             st_gid, st_size, st_atime, st_mtime, st_ctime))
-        return st
+        return os.stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid,
+                               st_gid, st_size, st_atime, st_mtime, st_ctime))
 
-    def iterdir_stat(path='.'):
+    def iterdir_stat(path='.', pattern='*', fields=None):
         """See iterdir_stat.__doc__ below for docstring."""
-        # Note that Windows doesn't need *.* anymore, just *
-        filename = os.path.join(path, '*')
+        # We can ignore "fields" in Windows, as FindFirst/Next gives full stat
+
+        if '[' in pattern or pattern.endswith('?'):
+            # Windows FindFirst/Next doesn't support bracket matching, and it
+            # doesn't handle ? at the end patterns as per fnmatch; use fnmatch
+            wildcard = '*'
+        else:
+            # Otherwise use built-in FindFirst/Next wildcard matching
+            wildcard = pattern
+            pattern = None
 
         # Call FindFirstFile and errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
+        filename = os.path.join(path, wildcard)
         handle = FindFirstFile(filename, data_p)
         if handle == INVALID_HANDLE_VALUE:
             error = ctypes.GetLastError()
@@ -133,8 +148,9 @@ if sys.platform == 'win32':
                 # otherwise yield (filename, stat_result) tuple
                 name = data.cFileName
                 if name not in ('.', '..'):
-                    st = find_data_to_stat(data)
-                    yield (name, st)
+                    if pattern is None or fnmatch.fnmatch(name, pattern):
+                        st = find_data_to_stat(data)
+                        yield (name, st)
 
                 success = FindNextFile(handle, data_p)
                 if not success:
@@ -154,15 +170,27 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
 
     DIR_p = ctypes.c_void_p
 
-    # TODO: Linux version -- may be different on OS X etc?
-    class dirent(ctypes.Structure):
-        _fields_ = (
-            ('d_ino', ctypes.c_ulong),
-            ('d_off', ctypes.c_long),
-            ('d_reclen', ctypes.c_ushort),
-            ('d_type', ctypes.c_byte),
-            ('d_name', ctypes.c_char * 256),
-        )
+    if sys.platform.startswith('linux'):
+        class dirent(ctypes.Structure):
+            _fields_ = (
+                ('d_ino', ctypes.c_ulong),
+                ('d_off', ctypes.c_long),
+                ('d_reclen', ctypes.c_ushort),
+                ('d_type', ctypes.c_byte),
+                ('d_name', ctypes.c_char * 256),
+            )
+    else:
+        class dirent(ctypes.Structure):
+            _fields_ = (
+                ('d_ino', ctypes.c_ulong),
+                ('d_reclen', ctypes.c_ushort),
+                ('d_type', ctypes.c_byte),
+                ('d_namlen', ctypes.c_byte),
+                ('d_name', ctypes.c_char * 256),
+            )
+
+    DT_UNKNOWN = 0
+
     dirent_p = ctypes.POINTER(dirent)
     dirent_pp = ctypes.POINTER(dirent_p)
 
@@ -180,19 +208,17 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
     closedir.argtypes = [DIR_p]
     closedir.restype = ctypes.c_int
 
-    DT_DIR = 4
-
     def type_to_stat(d_type):
-        if d_type == DT_DIR:
-            st_mode = stat.S_IFDIR | 0o111
-        else:
-            st_mode = stat.S_IFREG
-        st = os.stat_result((st_mode, None, None, None, None, None,
-                             None, None, None, None))
-        return st
+        """Convert dirent.d_type value to stat_result."""
+        st_mode = d_type << 12
+        return os.stat_result((st_mode,) + (None,) * 9)
 
-    def iterdir_stat(path='.'):
+    def iterdir_stat(path='.', pattern='*', fields=None):
         """See iterdir_stat.__doc__ below for docstring."""
+        # If we need more than just st_mode_type (dirent.d_type), we need to
+        # call stat() on each file
+        need_stat = fields is not None and set(fields) != set(['st_mode_type'])
+
         dir_p = opendir(path)
         if not dir_p:
             raise OSError('TODO: opendir error: {0}'.format(ctypes.get_errno()))
@@ -206,8 +232,12 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                     break
                 name = entry.d_name
                 if name not in ('.', '..'):
-                    st = type_to_stat(entry.d_type)
-                    yield (name, st)
+                    if pattern == '*' or fnmatch.fnmatch(name, pattern):
+                        if need_stat or entry.d_type == DT_UNKNOWN:
+                            st = os.stat(os.path.join(path, name))
+                        else:
+                            st = type_to_stat(entry.d_type)
+                        yield (name, st)
         finally:
             if closedir(dir_p):
                 raise OSError('TODO: closedir error: {0}'.format(ctypes.get_errno()))
@@ -215,33 +245,43 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
 
 # Some other system -- have to fall back to using os.listdir() and os.stat()
 else:
-    def iterdir_stat(path='.'):
-        for name in os.listdir(path):
-            st = os.stat(os.path.join(path, name))
+    def iterdir_stat(path='.', pattern='*', fields=None):
+        """See iterdir_stat.__doc__ below for docstring."""
+        names = os.listdir(path)
+        if pattern != '*':
+            names = fnmatch.filter(names, pattern)
+        for name in names:
+            if fields is not None:
+                st = os.stat(os.path.join(path, name))
+            else:
+                st = os.stat_result((None,) * 10)
             yield (name, st)
 
 
 iterdir_stat.__doc__ = """
-Yield tuples of (filename, stat_result) for each filename in directory given
-by "path". Like listdir(), '.' and '..' are skipped. The values are yielded in
-system-dependent order.
 
-Each stat_result is an object like you'd get by calling os.stat() on that
-file, but not all information is present on all systems, and st_* fields that
-are not available will be None.
+Yield tuples of (filename, stat_result) for each filename that matches
+"pattern" in the directory given by "path". Like os.listdir(), '.' and '..'
+are skipped, and the values are yielded in system-dependent order.
 
-In practice, stat_result is a full os.stat() on Windows; on POSIX systems, if
-st_mode is not None only the type bits are valid (which is the case for Linux,
-Mac OS X, and BSD).
+Pattern matching is done as per fnmatch.fnmatch(), but is more efficient if
+the system's directory iteration supports pattern matching (like Windows).
+
+The "fields" parameter specifies which fields to provide in each stat_result.
+If None, only the fields the operating system can get "for free" are present
+in stat_result. Otherwise "fields" must be an iterable of 'st_*' attribute
+names that the caller wants in each stat_result. The only special attribute
+name is 'st_mode_type', which means the type bits in the st_mode field.
+
+In practice, all fields are provided for free on Windows; whereas only the
+st_mode_type information is provided for free on Linux, Mac OS X, and BSD.
 """
 
 
-def iterdir(path='.'):
-    """Like os.listdir(), but yield filenames from given path as we get them,
-    instead of returning them all at once in a list.
-    """
-    for filename, stat_result in iterdir_stat(path):
-        yield filename
+def iterdir(path='.', pattern='*'):
+    """Like iterdir_stat(), but only yield the filenames."""
+    for name, st in iterdir_stat(path, pattern=pattern):
+        yield name
 
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
@@ -252,7 +292,7 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     # First get a list of all filenames/stat_results in the directory. We
     # could try to keep this an iterator, but error handling gets messy.
     try:
-        names_stats = list(iterdir_stat(top))
+        names_stats = list(iterdir_stat(top, fields=['st_mode_type']))
     except OSError as err:
         if onerror is not None:
             onerror(err)
@@ -263,8 +303,6 @@ def walk(top, topdown=True, onerror=None, followlinks=False):
     dir_stats = []
     nondirs = []
     for name, st in names_stats:
-        if st.st_mode is None:
-            st = os.stat(os.path.join(top, name))
         if stat.S_ISDIR(st.st_mode):
             dirs.append(name)
             dir_stats.append(st)
