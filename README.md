@@ -20,15 +20,18 @@ so no further `stat` system calls are needed. In short, you can reduce the
 number of system calls from O(N) to O(log N).
 
 In practice, removing all these extra `stat()` calls makes `os.walk()` about
-5x as fast on Windows, and TODO as fast on Linux. So we're not talking about
-micro-optimizations.
+5x as fast on Windows, so at least on Windows we're *not* talking about micro-
+optimizations. However, in my benchmarks on Linux, the gains are much more
+modest -- betterwalk.walk() is only about 10% faster than os.walk(). TODO: add
+OS X results
 
-Also, and somewhat relatedly, many people have also asked for a version of
+Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
 as one big list.
 
-BetterWalk adds a faster `walk()`, `iterdir()`, and `iterdir_stat()`. They're
-pretty easy to use, but [see below](#the-api) for more information on the API.
+As well as a faster `walk()`, BetterWalk adds `iterdir()`, and
+`iterdir_stat()`. They're pretty easy to use, but [see below](#the-api) for
+the full API docs.
 
 
 Why you should care

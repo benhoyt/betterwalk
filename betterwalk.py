@@ -168,7 +168,6 @@ if sys.platform == 'win32':
 
 # Linux, OS X, and BSD implementation
 elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
-    import ctypes
     import ctypes.util
 
     DIR_p = ctypes.c_void_p
@@ -293,28 +292,21 @@ def iterdir(path='.', pattern='*'):
 
 def walk(top, topdown=True, onerror=None, followlinks=False):
     """Just like os.walk(), but faster, as it uses iterdir_stat internally."""
-    # The structure of this function is copied directly from Python 2.7's
-    # version of os.walk()
-
-    # First get a list of all filenames/stat_results in the directory. We
-    # could try to keep this an iterator, but error handling gets messy.
-    try:
-        names_stats = list(iterdir_stat(top, fields=['st_mode_type']))
-    except OSError as err:
-        if onerror is not None:
-            onerror(err)
-        return
-
     # Determine which are files and which are directories
     dirs = []
     dir_stats = []
     nondirs = []
-    for name, st in names_stats:
-        if stat.S_ISDIR(st.st_mode):
-            dirs.append(name)
-            dir_stats.append(st)
-        else:
-            nondirs.append(name)
+    try:
+        for name, st in iterdir_stat(top, fields=['st_mode_type']):
+            if stat.S_ISDIR(st.st_mode):
+                dirs.append(name)
+                dir_stats.append(st)
+            else:
+                nondirs.append(name)
+    except OSError as err:
+        if onerror is not None:
+            onerror(err)
+        return
 
     # Yield before recursion if going top down
     if topdown:
