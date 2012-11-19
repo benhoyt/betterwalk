@@ -144,7 +144,7 @@ if sys.platform == 'win32':
             if error == ERROR_FILE_NOT_FOUND:
                 # No files, don't yield anything
                 return
-            raise win_error(error, filename)
+            raise win_error(error, path)
 
         # Call FindNextFile in a loop, stopping when no more files
         try:
@@ -162,10 +162,10 @@ if sys.platform == 'win32':
                     error = ctypes.GetLastError()
                     if error == ERROR_NO_MORE_FILES:
                         break
-                    raise win_error(error, filename)
+                    raise win_error(error, path)
         finally:
             if not FindClose(handle):
-                raise win_error(ctypes.GetLastError(), filename)
+                raise win_error(ctypes.GetLastError(), path)
 
 
 # Linux, OS X, and BSD implementation
