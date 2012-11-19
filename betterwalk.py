@@ -197,7 +197,6 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
     dirent_p = ctypes.POINTER(dirent)
     dirent_pp = ctypes.POINTER(dirent_p)
 
-    # TODO: test with unicode filenames
     libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
     opendir = libc.opendir
     opendir.argtypes = [ctypes.c_char_p]
