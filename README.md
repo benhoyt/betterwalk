@@ -20,18 +20,18 @@ so no further `stat` system calls are needed. In short, you can reduce the
 number of system calls from O(N) to O(log N).
 
 In practice, removing all these extra `stat()` calls makes `os.walk()` about
-5x as fast on Windows, so at least on Windows we're *not* talking about micro-
-optimizations. However, in my benchmarks on Linux, the gains are much more
-modest -- betterwalk.walk() is only about 10% faster than os.walk(). TODO: add
-OS X results
+5x as fast on Windows, so at least on Windows we're *not* talking about
+micro-optimizations. However, in my benchmarks on Linux, the gains are much
+more modest -- betterwalk.walk() is only about 10% faster than os.walk().
+TODO: add OS X results
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
 as one big list.
 
-As well as a faster `walk()`, BetterWalk adds `iterdir()`, and
-`iterdir_stat()`. They're pretty easy to use, but [see below](#the-api) for
-the full API docs.
+As well as a faster `walk()`, BetterWalk adds `iterdir_stat()` and
+`iterdir()`. They're pretty easy to use, but [see below](#the-api) for the
+full API docs.
 
 
 Why you should care
@@ -53,32 +53,53 @@ and API additions in Python 3.4 ... :-)
 The API
 -------
 
+### walk()
+
 The API for `betterwalk.walk()` is exactly the same as `os.walk()`, so just
 [read the Python docs](http://docs.python.org/2/library/os.html#os.walk).
 
-Using `iterdir()` is extremely straight-forward. It's just the same as
-`os.listdir()` except it yields filenames as it gets them, instead of
-returning them all at once in a list. This can be nicer as well as more
-efficient for processing large directories.
+### iterdir_stat()
 
-And `iterdir_stat()` is similar, except it yields tuples of `(filename,
-stat_result)`, where `stat_result` is a tuple-like structure [as returned by
-os.stat()](http://docs.python.org/2/library/os.html#os.stat). However, just
-like `stat()`, the values returned are implementation dependent. Further,
-`st_` fields that `iterdir_stat()` doesn't know are set to `None`.
-
-So here's a good usage pattern for `iterdir_stat`. This is in fact very
-similar to how the faster `os.walk()` implementation works:
+The `iterdir_stat()` function is BetterWalk's main workhorse. It's defined as
+follows:
 
 ```python
-for filename, st in betterwalk.iterdir_stat(path):
-    if st.st_mode is None:
-        st = os.stat(os.path.join(path, filename))
-    if stat.S_ISDIR(st.st_mode):
-        # handle directory
-    else:
-        # handle file
+iterdir_stat(path='.', pattern='*', fields=None)
 ```
+
+It yield tuples of (filename, stat_result) for each filename that matches
+`pattern` in the directory given by `path`. Like os.listdir(), `.` and `..`
+are skipped, and the values are yielded in system-dependent order.
+
+Pattern matching is done as per fnmatch.fnmatch(), but is more efficient if
+the system's directory iteration supports pattern matching (like Windows).
+
+The `fields` parameter specifies which fields to provide in each stat_result.
+If None, only the fields the operating system can get "for free" are present
+in stat_result. Otherwise "fields" must be an iterable of `st_*` attribute
+names that the caller wants in each stat_result. The only special attribute
+name is `st_mode_type`, which means the type bits in the st_mode field.
+
+In practice, all fields are provided for free on Windows; whereas only the
+st_mode_type information is provided for free on Linux, Mac OS X, and BSD.
+
+Here's a good usage pattern for `iterdir_stat`. This is in fact almost exactly
+how the faster `os.walk()` implementation uses it:
+
+```python
+dirs = []
+nondirs = []
+for name, st in betterwalk.iterdir_stat(top, fields=['st_mode_type']):
+    if stat.S_ISDIR(st.st_mode):
+        dirs.append(name)
+    else:
+        nondirs.append(name)
+```
+
+### iterdir()
+
+The `iterdir()` function is similar to iterdir_stat(), except it doesn't
+provide any stat information, but simply yields a list of filenames.
 
 
 Further reading
