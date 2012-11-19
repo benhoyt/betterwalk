@@ -113,13 +113,9 @@ Further reading
 To-do
 -----
 
-* Finish Linux/BSD version and get it working
 * Add tests (copy CPython's unit tests for `walk` and `listdir`?)
-* Ensure it works in Python 3
 * Consider adding `walk_stat()` to speed up things like totalling size
   of a directory tree on Windows
-* Consider adding `glob=None` param to `listdir()` to take advantage of
-  FindFirst/Next's wildcard matching
 
 
 Flames, comments, bug reports
