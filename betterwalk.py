@@ -264,7 +264,6 @@ else:
 
 
 iterdir_stat.__doc__ = """
-
 Yield tuples of (filename, stat_result) for each filename that matches
 "pattern" in the directory given by "path". Like os.listdir(), '.' and '..'
 are skipped, and the values are yielded in system-dependent order.
