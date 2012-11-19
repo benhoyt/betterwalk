@@ -116,6 +116,11 @@ if sys.platform == 'win32':
         return os.stat_result((st_mode, st_ino, st_dev, st_nlink, st_uid,
                                st_gid, st_size, st_atime, st_mtime, st_ctime))
 
+    def win_error(error, filename):
+        exc = WindowsError(error, ctypes.FormatError(error))
+        exc.filename = filename
+        return exc
+
     def iterdir_stat(path='.', pattern='*', fields=None):
         """See iterdir_stat.__doc__ below for docstring."""
         # We can ignore "fields" in Windows, as FindFirst/Next gives full stat
@@ -139,7 +144,7 @@ if sys.platform == 'win32':
             if error == ERROR_FILE_NOT_FOUND:
                 # No files, don't yield anything
                 return
-            raise ctypes.WinError()
+            raise win_error(error, filename)
 
         # Call FindNextFile in a loop, stopping when no more files
         try:
@@ -157,10 +162,10 @@ if sys.platform == 'win32':
                     error = ctypes.GetLastError()
                     if error == ERROR_NO_MORE_FILES:
                         break
-                    raise ctypes.WinError()
+                    raise win_error(error, filename)
         finally:
             if not FindClose(handle):
-                raise ctypes.WinError()
+                raise win_error(ctypes.GetLastError(), filename)
 
 
 # Linux, OS X, and BSD implementation
