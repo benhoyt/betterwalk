@@ -34,8 +34,6 @@ import sys
 # It's arguable, though, that symbolic links on windows are rare enough
 # not to matter.
 
-# TODO: error handling, WindowsError with filename
-
 
 __version__ = '0.6'
 __all__ = ['iterdir', 'iterdir_stat', 'walk']
@@ -218,6 +216,12 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
         st_mode = d_type << 12
         return os.stat_result((st_mode,) + (None,) * 9)
 
+    def posix_error(filename):
+        errno = ctypes.get_errno()
+        exc = OSError(errno, os.strerror(errno))
+        exc.filename = filename
+        return exc
+
     def iterdir_stat(path='.', pattern='*', fields=None):
         """See iterdir_stat.__doc__ below for docstring."""
         # If we need more than just st_mode_type (dirent.d_type), we need to
@@ -226,13 +230,13 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
 
         dir_p = opendir(path)
         if not dir_p:
-            raise OSError('TODO: opendir error: {0}'.format(ctypes.get_errno()))
+            raise posix_error(path)
         try:
             entry = dirent()
             result = dirent_p()
             while True:
                 if readdir_r(dir_p, entry, result):
-                    raise OSError('TODO: readdir_r error: {0}'.format(ctypes.get_errno()))
+                    raise posix_error(path)
                 if not result:
                     break
                 name = entry.d_name
@@ -245,7 +249,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                         yield (name, st)
         finally:
             if closedir(dir_p):
-                raise OSError('TODO: closedir error: {0}'.format(ctypes.get_errno()))
+                raise posix_error(path)
 
 
 # Some other system -- have to fall back to using os.listdir() and os.stat()
