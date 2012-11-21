@@ -235,7 +235,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
         # call stat() on each file
         need_stat = fields is not None and set(fields) != set(['st_mode_type'])
 
-        dir_p = opendir(path)
+        dir_p = opendir(path.encode('utf-8'))
         if not dir_p:
             raise posix_error(path)
         try:
@@ -246,7 +246,7 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                     raise posix_error(path)
                 if not result:
                     break
-                name = entry.d_name
+                name = entry.d_name.decode('utf-8')
                 if name not in ('.', '..'):
                     if pattern == '*' or fnmatch.fnmatch(name, pattern):
                         if need_stat or entry.d_type == DT_UNKNOWN:
