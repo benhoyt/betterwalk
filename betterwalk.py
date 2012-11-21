@@ -172,8 +172,10 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
 
     DIR_p = ctypes.c_void_p
 
-    if sys.platform.startswith('linux'):
-        class dirent(ctypes.Structure):
+    # Rather annoying how the dirent struct is slightly different on each
+    # platform. The only fields we care about are d_name and d_type.
+    class dirent(ctypes.Structure):
+        if sys.platform.startswith('linux'):
             _fields_ = (
                 ('d_ino', ctypes.c_ulong),
                 ('d_off', ctypes.c_long),
@@ -181,8 +183,15 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                 ('d_type', ctypes.c_byte),
                 ('d_name', ctypes.c_char * 256),
             )
-    else:
-        class dirent(ctypes.Structure):
+        elif sys.platform.startswith('darwin'):
+            _fields_ = (
+                ('d_ino', ctypes.c_uint32),  # must be uint32, not ulong
+                ('d_reclen', ctypes.c_ushort),
+                ('d_type', ctypes.c_byte),
+                ('d_namlen', ctypes.c_byte),
+                ('d_name', ctypes.c_char * 256),
+            )
+        else:  # freebsd
             _fields_ = (
                 ('d_ino', ctypes.c_ulong),
                 ('d_reclen', ctypes.c_ushort),
