@@ -111,8 +111,8 @@ benchmark using it instead of creating a tree.
     else:
         tree_dir = os.path.join(os.path.dirname(__file__), 'benchtree')
         if not os.path.exists(tree_dir):
-            print 'Creating tree at {0}: depth={1}, num_dirs={2}, num_files={3}'.format(
-                tree_dir, DEPTH, NUM_DIRS, NUM_FILES)
+            print('Creating tree at {0}: depth={1}, num_dirs={2}, num_files={3}'.format(
+                tree_dir, DEPTH, NUM_DIRS, NUM_FILES))
             create_tree(tree_dir)
 
     benchmark(tree_dir, get_size=options.size)
