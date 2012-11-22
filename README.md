@@ -19,16 +19,16 @@ Linux/BSD already tell you whether the files returned are directories or not,
 so no further `stat` system calls are needed. In short, you can reduce the
 number of system calls from O(N) to O(log N).
 
-**In practice, removing all these extra `stat()` calls makes walking about
-2-6x as fast on Windows, 5-10x as fast on Mac OS X, and about 1.1x as fast on
-Linux.** So at least on Windows and Mac OS X we're *not* talking about micro-
-optimizations. [See more benchmarks below.](#benchmarks)
+**In practice, removing all those extra system calls makes walking about 2-5
+times as fast on Windows, 5-10 times as fast on Mac OS X, and about 1.1 times
+as fast on Linux.** So at least on Windows and Mac OS X we're *not* talking
+about micro-optimizations. [See more benchmarks below.](#benchmarks)
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
 as one big list.
 
-As well as a faster `walk()`, BetterWalk adds `iterdir_stat()` and
+So as well as a faster `walk()`, BetterWalk adds `iterdir_stat()` and
 `iterdir()`. They're pretty easy to use, but [see below](#the-api) for the
 full API docs.
 
@@ -52,24 +52,36 @@ and API additions in Python 3.4 ... :-)
 Benchmarks
 ----------
 
-Here are benchmarks on various systems (from running `benchmark.py` with no
-arguments). Some of these are systems I have running on VirtualBox -- if you
-can benchmark it on your own similar system on real hardware, send in the
-results and I'll replace these with your results.
+Below are results showing how many times as fast `betterwalk.walk()` is than
+`os.walk()` on various systems, found by running `benchmark.py` with no
+arguments as well as with the `-s` argument (which totals the directory size).
 
 ```
-System version            Python version      BetterWalk is this many times as fast
------------------------------------------------------------------------------------
-Windows 7 64 bit          Python 2.6 64 bit   2.7
-Windows 7 64 bit          Python 2.7 64 bit   2.1
-Windows 7 64 bit          Python 3.2 64 bit   2.8
-Windows 8 64 bit VBox     Python 2.7 64 bit
-Windows XP 32 bit         Python 2.7 32 bit   TODO
+System version              Python version    Speed ratio    With -s
+--------------------------------------------------------------------
+Windows 7 64 bit            2.6 64 bit        2.7            5.1
+Windows 7 64 bit            2.7 64 bit        2.1            4.3
+Windows 7 64 bit            3.2 64 bit        2.8            6.3
+Windows 8 64 bit VBox       2.7 64 bit        5.5            8.3
+Windows XP 32 bit           2.7 32 bit        1.1            2.2
+Windows XP 32 bit           3.3 32 bit        1.7            4.4
 
-Ubuntu 12.04 64 bit VBox  Python              TODO
+Ubuntu 12.04 64 bit VBox    2.7 64 bit        0.8            0.8
+Ubuntu 12.04 64 bit VBox    3.2 64 bit        1.4            1.2
 
-Mac OS X TODO             Python 2.7 64 bit   TODO
+Mac OS X TODO               2.7 64 bit        TODO
 ```
+
+Some of these are systems I have running on VirtualBox -- if you can benchmark
+it on your own similar system on real hardware, send in the results and I'll
+replace these with your results.
+
+The fact that it's *slower* on Linux is almost certainly because BetterWalk's
+technique doesn't give a major speed increase on Linux, and because BetterWalk
+uses `ctypes` in pure Python to do the system calls (whereas `os.walk` uses
+`os.listdir` which is written in C), it's actually slightly slower on a tree
+of this size. On larger directories (`/usr`, for example) I see a speed ratio
+of about 1.1.
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
