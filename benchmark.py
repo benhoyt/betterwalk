@@ -91,7 +91,7 @@ def benchmark(path, get_size=False):
         print('os.walk size {0}, BetterWalk size {1} -- {2}'.format(
             sizes['os_walk'], sizes['betterwalk'], equality))
 
-    print('os.walk took {0:.3f}s, BetterWalk took {1:.3f}s -- {2:.3f}x as fast'.format(
+    print('os.walk took {0:.3f}s, BetterWalk took {1:.3f}s -- {2:.1f}x as fast'.format(
           os_walk_time, betterwalk_time, os_walk_time / betterwalk_time))
 
 def main():
