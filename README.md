@@ -17,7 +17,8 @@ because -- in addition to calling `listdir()` on each directory -- it calls
 But both `FindFirstFile` / `FindNextFile` on Windows and `readdir` on
 Linux/BSD already tell you whether the files returned are directories or not,
 so no further `stat` system calls are needed. In short, you can reduce the
-number of system calls from O(N) to O(log N).
+number of system calls from about 2N to N, where N is the total number of
+files and directories in the tree.
 
 **In practice, removing all those extra system calls makes walking about 2-5
 times as fast on Windows, 5-10 times as fast on Mac OS X, and about 1.1 times
