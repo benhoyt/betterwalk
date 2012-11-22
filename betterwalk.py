@@ -15,28 +15,9 @@ import os
 import stat
 import sys
 
-# TODO: test and benchmark with atimes turned off, on other Windows systems,
-# Windows 8, networked files, etc
-
-# TODO: Reparse points / Win32 symbolic links need testing. From Random832:
-# http://mail.python.org/pipermail/python-ideas/2012-November/017794.html
-
-# In the presence of reparse points (i.e. symbolic links) on win32, I
-# believe information about whether the destination is meant to be a
-# directory is still provided (I haven't confirmed this, but I know you're
-# required to provide it when making a symlink). This is discarded when
-# the st_mode field is populated with the information that it is a
-# symlink. If the goal is "speed up os.walk", it might be worth keeping
-# this information and using it in os.walk(..., followlinks=True) - maybe
-# the windows version of the stat result has a field for the windows
-# attributes?
-
-# It's arguable, though, that symbolic links on windows are rare enough
-# not to matter.
-
-
 __version__ = '0.6'
 __all__ = ['iterdir', 'iterdir_stat', 'walk']
+
 
 # Windows implementation
 if sys.platform == 'win32':

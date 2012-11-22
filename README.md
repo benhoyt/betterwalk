@@ -113,9 +113,7 @@ Further reading
 To-do
 -----
 
-* Add tests (copy CPython's unit tests for `walk` and `listdir`?)
-* Consider adding `walk_stat()` to speed up things like totalling size
-  of a directory tree on Windows
+* Add tests, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
 
 
 Flames, comments, bug reports
