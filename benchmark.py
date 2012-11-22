@@ -20,7 +20,7 @@ def create_tree(path, depth=DEPTH):
     for i in range(NUM_FILES):
         filename = os.path.join(path, 'file{0:03}.txt'.format(i))
         with open(filename, 'wb') as f:
-            line = 'The quick brown fox jumps over the lazy dog.\n'
+            line = b'The quick brown fox jumps over the lazy dog.\n'
             if i == 0:
                 # So we have at least one big file per directory
                 f.write(line * 20000)
