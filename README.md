@@ -19,11 +19,10 @@ Linux/BSD already tell you whether the files returned are directories or not,
 so no further `stat` system calls are needed. In short, you can reduce the
 number of system calls from O(N) to O(log N).
 
-In practice, removing all these extra `stat()` calls makes `os.walk()` about
-5x as fast on Windows, so at least on Windows we're *not* talking about
-micro-optimizations. However, in my benchmarks on Linux, the gains are much
-more modest -- betterwalk.walk() is only about 10% faster than os.walk().
-TODO: add OS X results
+**In practice, removing all these extra `stat()` calls makes walking about
+2-6x as fast on Windows, 5-10x as fast on Mac OS X, and about 1.1x as fast on
+Linux.** So at least on Windows and Mac OS X we're *not* talking about micro-
+optimizations. [See more benchmarks below.](#benchmarks)
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
@@ -48,6 +47,33 @@ speed it up and add small improvements where possible.
 **So I'd love it if you could help test BetterWalk, report bugs, suggest
 improvement, or comment on the API.** And perhaps you'll see these speed-ups
 and API additions in Python 3.4 ... :-)
+
+
+Benchmarks
+----------
+
+Here are benchmarks on various systems (from running `benchmark.py` with no
+arguments). Some of these are systems I have running on VirtualBox -- if you
+can benchmark it on your own similar system on real hardware, send in the
+results and I'll replace these with your results.
+
+```
+System version            Python version      BetterWalk is this many times as fast
+-----------------------------------------------------------------------------------
+Windows 7 64 bit          Python 2.6 64 bit   2.7
+Windows 7 64 bit          Python 2.7 64 bit   2.1
+Windows 7 64 bit          Python 3.2 64 bit   2.8
+Windows 8 64 bit VBox     Python 2.7 64 bit
+Windows XP 32 bit         Python 2.7 32 bit   TODO
+
+Ubuntu 12.04 64 bit VBox  Python              TODO
+
+Mac OS X TODO             Python 2.7 64 bit   TODO
+```
+
+Note that the gains are less than the above on smaller directories and greater
+on larger directories. This is why `benchmark.py` creates a test directory
+tree with a standardized size.
 
 
 The API
