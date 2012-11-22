@@ -164,17 +164,9 @@ elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
                 ('d_type', ctypes.c_byte),
                 ('d_name', ctypes.c_char * 256),
             )
-        elif sys.platform.startswith('darwin'):
+        else:
             _fields_ = (
                 ('d_ino', ctypes.c_uint32),  # must be uint32, not ulong
-                ('d_reclen', ctypes.c_ushort),
-                ('d_type', ctypes.c_byte),
-                ('d_namlen', ctypes.c_byte),
-                ('d_name', ctypes.c_char * 256),
-            )
-        else:  # freebsd
-            _fields_ = (
-                ('d_ino', ctypes.c_ulong),
                 ('d_reclen', ctypes.c_ushort),
                 ('d_type', ctypes.c_byte),
                 ('d_namlen', ctypes.c_byte),
