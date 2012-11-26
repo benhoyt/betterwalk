@@ -148,7 +148,7 @@ if sys.platform == 'win32':
 
 
 # Linux, OS X, and BSD implementation
-elif sys.platform.startswith(('linux', 'darwin', 'freebsd')):
+elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     import ctypes.util
 
     DIR_p = ctypes.c_void_p
