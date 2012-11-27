@@ -12,6 +12,40 @@ DEPTH = 4
 NUM_DIRS = 5
 NUM_FILES = 50
 
+def os_listdir(path):
+    """Identical to os.listdir(), but use iterdir_stat() to get data so we're
+    using ctypes-based system calls to benchmark against.
+    """
+    return [name for name, st in betterwalk.iterdir_stat(path)]
+
+def os_walk(top, topdown=True, onerror=None, followlinks=False):
+    """Identical to os.walk(), but use ctypes-based listdir() so benchmark
+    against ctypes-based iterdir_stat() is valid.
+    """
+    try:
+        names = os_listdir(top)
+    except error as err:
+        if onerror is not None:
+            onerror(err)
+        return
+
+    dirs, nondirs = [], []
+    for name in names:
+        if os.path.isdir(os.path.join(top, name)):
+            dirs.append(name)
+        else:
+            nondirs.append(name)
+
+    if topdown:
+        yield top, dirs, nondirs
+    for name in dirs:
+        new_path = os.path.join(top, name)
+        if followlinks or not os.path.islink(new_path):
+            for x in os_walk(new_path, topdown, onerror, followlinks):
+                yield x
+    if not topdown:
+        yield top, dirs, nondirs
+
 def create_tree(path, depth=DEPTH):
     """Create a directory tree at path with given depth, and NUM_DIRS and
     NUM_FILES at each level.
@@ -51,7 +85,7 @@ def benchmark(path, get_size=False):
     if get_size:
         def do_os_walk():
             size = 0
-            for root, dirs, files in os.walk(path):
+            for root, dirs, files in os_walk(path):
                 for filename in files:
                     fullname = os.path.join(root, filename)
                     size += os.path.getsize(fullname)
@@ -62,7 +96,7 @@ def benchmark(path, get_size=False):
 
     else:
         def do_os_walk():
-            for root, dirs, files in os.walk(path):
+            for root, dirs, files in os_walk(path):
                 pass
 
         def do_betterwalk():
@@ -104,6 +138,8 @@ benchmark using it instead of creating a tree.
     parser = optparse.OptionParser(usage=main.__doc__.rstrip())
     parser.add_option('-s', '--size', action='store_true',
                       help='get size of directory tree while walking')
+    parser.add_option('-r', '--real-os-walk', action='store_true',
+                      help='use real os.walk() instead of ctypes emulation')
     options, args = parser.parse_args()
 
     if args:
@@ -114,6 +150,10 @@ benchmark using it instead of creating a tree.
             print('Creating tree at {0}: depth={1}, num_dirs={2}, num_files={3}'.format(
                 tree_dir, DEPTH, NUM_DIRS, NUM_FILES))
             create_tree(tree_dir)
+
+    if options.real_os_walk:
+        global os_walk
+        os_walk = os.walk
 
     benchmark(tree_dir, get_size=options.size)
 
