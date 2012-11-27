@@ -14,16 +14,16 @@ Background
 Python's built-in `os.walk()` is significantly slower than it needs to be,
 because -- in addition to calling `listdir()` on each directory -- it calls
 `stat()` on each file to determine whether the filename is a directory or not.
-But both `FindFirstFile` / `FindNextFile` on Windows and `readdir` on
-Linux/BSD already tell you whether the files returned are directories or not,
-so no further `stat` system calls are needed. In short, you can reduce the
-number of system calls from about 2N to N, where N is the total number of
-files and directories in the tree.
+But both `FindFirstFile` / `FindNextFile` on Windows and `readdir` on Linux/OS
+X/BSD already tell you whether the files returned are directories or not, so
+no further `stat` system calls are needed. In short, you can reduce the number
+of system calls from about 2N to N, where N is the total number of files and
+directories in the tree.
 
-**In practice, removing all those extra system calls makes walking about 2-5
-times as fast on Windows, 5-10 times as fast on Mac OS X, and about 1.1 times
-as fast on Linux.** So at least on Windows and Mac OS X we're *not* talking
-about micro-optimizations. [See more benchmarks below.](#benchmarks)
+**In practice, removing all those extra system calls makes walking about 2-4
+times as fast on Windows, and 1.5-2 times as fast on Linux and Mac OS X.** So
+we're *not* talking about micro-optimizations (especially on Windows). [See
+more benchmarks below.](#benchmarks)
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
@@ -60,29 +60,28 @@ arguments as well as with the `-s` argument (which totals the directory size).
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.6 64 bit        2.7            5.1
-Windows 7 64 bit            2.7 64 bit        2.1            4.3
-Windows 7 64 bit            3.2 64 bit        2.8            6.3
-Windows 8 64 bit VBox       2.7 64 bit        5.5            8.3
-Windows XP 32 bit           2.7 32 bit        1.1            2.2
-Windows XP 32 bit           3.3 32 bit        1.7            4.4
+Windows 7 64 bit            2.6 64 bit        3.1            5.1
+Windows 7 64 bit            2.7 64 bit        2.8            4.8
+Windows 7 64 bit            3.2 64 bit        3.7            6.9
+Windows XP 32 bit           2.7 32 bit        1.8            2.8
+Windows XP 32 bit           3.3 32 bit        2.5            5.3
 
-Ubuntu 12.04 64 bit VBox    2.7 64 bit        0.8            0.8
-Ubuntu 12.04 64 bit VBox    3.2 64 bit        1.4            1.2
+Debian 2.6.32 32 bit        2.6 32 bit        1.8            1.5
+Ubuntu 12.04 64 bit VBox    2.7 64 bit        1.8            1.5
+Ubuntu 12.04 64 bit VBox    3.2 64 bit        2.1            1.6
 
 Mac OS X TODO               2.7 64 bit        TODO
 ```
 
+Originally I was benchmarking against the actual `os.walk()`, but that uses
+`listdir()` which is written in C, whereas `iterdir_stat()` is written in pure
+Python using ctypes. So (on Linux) the cost of ctypes was outweighing the
+speed increase due to not doing the stat. So I've changed the benchmark to use
+a ctypes version of `listdir()` so it's comparing apples with apples.
+
 Some of these are systems I have running on VirtualBox -- if you can benchmark
 it on your own similar system on real hardware, send in the results and I'll
 replace these with your results.
-
-The fact that it's *slower* on Linux is almost certainly because BetterWalk's
-technique doesn't give a major speed increase on Linux, and because BetterWalk
-uses `ctypes` in pure Python to do the system calls (whereas `os.walk` uses
-`os.listdir` which is written in C), it's actually slightly slower on a tree
-of this size. On larger directories (`/usr`, for example) I see a speed ratio
-of about 1.1.
 
 Note that the gains are less than the above on smaller directories and greater
 on larger directories. This is why `benchmark.py` creates a test directory
