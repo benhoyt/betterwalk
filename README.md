@@ -20,10 +20,10 @@ no further `stat` system calls are needed. In short, you can reduce the number
 of system calls from about 2N to N, where N is the total number of files and
 directories in the tree.
 
-**In practice, removing all those extra system calls makes walking about 2-4
-times as fast on Windows, and 1.5-2 times as fast on Linux and Mac OS X.** So
-we're *not* talking about micro-optimizations (especially on Windows). [See
-more benchmarks below.](#benchmarks)
+**In practice, removing all those extra system calls makes walking about 2-3
+times as fast on Windows, and about 1.5 times as fast on Linux and Mac OS X.**
+So we're not talking about micro-optimizations. [See more benchmarks
+below.](#benchmarks)
 
 Somewhat relatedly, many people have also asked for a version of
 `os.listdir()` that yields filenames as it iterates instead of returning them
@@ -60,15 +60,15 @@ arguments as well as with the `-s` argument (which totals the directory size).
 ```
 System version              Python version    Speed ratio    With -s
 --------------------------------------------------------------------
-Windows 7 64 bit            2.6 64 bit        3.1            5.1
-Windows 7 64 bit            2.7 64 bit        2.8            4.8
-Windows 7 64 bit            3.2 64 bit        3.7            6.9
-Windows XP 32 bit           2.7 32 bit        1.8            2.8
-Windows XP 32 bit           3.3 32 bit        2.5            5.3
+Windows 7 64 bit            2.6 64 bit        2.5            4.5
+Windows 7 64 bit            2.7 64 bit        2.2            4.2
+Windows 7 64 bit            3.2 64 bit        3.0            6.2
+Windows XP 32 bit           2.7 32 bit        1.3            2.4
+Windows XP 32 bit           3.3 32 bit        2.0            4.8
 
-Debian 2.6.32 32 bit        2.6 32 bit        1.8            1.5
-Ubuntu 12.04 64 bit VBox    2.7 64 bit        1.8            1.5
-Ubuntu 12.04 64 bit VBox    3.2 64 bit        2.1            1.6
+Debian 2.6.32 32 bit        2.6 32 bit        1.6            1.5
+Ubuntu 12.04 64 bit VBox    2.7 64 bit        1.5            1.3
+Ubuntu 12.04 64 bit VBox    3.2 64 bit        1.7            1.4
 
 Mac OS X TODO               2.7 64 bit        TODO
 ```
