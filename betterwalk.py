@@ -113,7 +113,7 @@ if sys.platform == 'win32':
             wildcard = pattern
             pattern = None
 
-        # Call FindFirstFile and errors
+        # Call FindFirstFile and handle errors
         data = wintypes.WIN32_FIND_DATAW()
         data_p = ctypes.byref(data)
         filename = os.path.join(path, wildcard)

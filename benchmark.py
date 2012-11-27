@@ -12,11 +12,62 @@ DEPTH = 4
 NUM_DIRS = 5
 NUM_FILES = 50
 
-def os_listdir(path):
-    """Identical to os.listdir(), but use iterdir_stat() to get data so we're
-    using ctypes-based system calls to benchmark against.
-    """
-    return [name for name, st in betterwalk.iterdir_stat(path)]
+# ctypes versions of os.listdir() so benchmark can compare apples with apples
+if sys.platform == 'win32':
+    import ctypes
+    from ctypes import wintypes
+
+    def os_listdir(path):
+        data = wintypes.WIN32_FIND_DATAW()
+        data_p = ctypes.byref(data)
+        filename = os.path.join(path, '*')
+        handle = betterwalk.FindFirstFile(filename, data_p)
+        if handle == betterwalk.INVALID_HANDLE_VALUE:
+            error = ctypes.GetLastError()
+            if error == betterwalk.ERROR_FILE_NOT_FOUND:
+                return []
+            raise betterwalk.win_error(error, path)
+        names = []
+        try:
+            while True:
+                name = data.cFileName
+                if name not in ('.', '..'):
+                    names.append(name)
+                success = betterwalk.FindNextFile(handle, data_p)
+                if not success:
+                    error = ctypes.GetLastError()
+                    if error == betterwalk.ERROR_NO_MORE_FILES:
+                        break
+                    raise betterwalk.win_error(error, path)
+        finally:
+            if not betterwalk.FindClose(handle):
+                raise betterwalk.win_error(ctypes.GetLastError(), path)
+        return names
+
+elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
+    def os_listdir(path):
+        dir_p = betterwalk.opendir(path.encode(betterwalk.file_system_encoding))
+        if not dir_p:
+            raise betterwalk.posix_error(path)
+        names = []
+        try:
+            entry = betterwalk.dirent()
+            result = betterwalk.dirent_p()
+            while True:
+                if betterwalk.readdir_r(dir_p, entry, result):
+                    raise betterwalk.posix_error(path)
+                if not result:
+                    break
+                name = entry.d_name.decode(betterwalk.file_system_encoding)
+                if name not in ('.', '..'):
+                    names.append(name)
+        finally:
+            if betterwalk.closedir(dir_p):
+                raise betterwalk.posix_error(path)
+        return names
+
+else:
+    raise NotImplementedError
 
 def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """Identical to os.walk(), but use ctypes-based listdir() so benchmark
@@ -24,7 +75,7 @@ def os_walk(top, topdown=True, onerror=None, followlinks=False):
     """
     try:
         names = os_listdir(top)
-    except error as err:
+    except OSError as err:
         if onerror is not None:
             onerror(err)
         return
