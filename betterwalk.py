@@ -191,6 +191,8 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
     closedir.argtypes = [DIR_p]
     closedir.restype = ctypes.c_int
 
+    file_system_encoding = sys.getfilesystemencoding()
+
     def type_to_stat(d_type):
         """Convert dirent.d_type value to stat_result."""
         st_mode = d_type << 12
@@ -208,7 +210,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
         # call stat() on each file
         need_stat = fields is not None and set(fields) != set(['st_mode_type'])
 
-        dir_p = opendir(path.encode('utf-8'))
+        dir_p = opendir(path.encode(file_system_encoding))
         if not dir_p:
             raise posix_error(path)
         try:
@@ -219,7 +221,7 @@ elif sys.platform.startswith(('linux', 'darwin')) or 'bsd' in sys.platform:
                     raise posix_error(path)
                 if not result:
                     break
-                name = entry.d_name.decode('utf-8')
+                name = entry.d_name.decode(file_system_encoding)
                 if name not in ('.', '..'):
                     if pattern == '*' or fnmatch.fnmatch(name, pattern):
                         if need_stat or entry.d_type == DT_UNKNOWN:

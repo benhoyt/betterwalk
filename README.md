@@ -153,7 +153,6 @@ To-do
 -----
 
 * Windows FindFirst/Next wildcard matching is quirky (compared to fnmatch). From Random832 on python-ideas: it matches short filenames, the behavior you noted of "?" at the end of patterns also applies to the end of the 'filename portion' (e.g. foo?.txt can match foo.txt), and the behavior of patterns ending in ".*" or "." isn't like fnmatch. [This](http://digital.ni.com/public.nsf/allkb/0DBE16907A17717B86256F7800169797) and [this](http://blogs.msdn.com/b/oldnewthing/archive/2007/12/17/6785519.aspx) might be helpful.
-* Use sys.getfilesystemencoding() instead of hard-coded utf-8 in POSIX version.
 * From John Mulligan on python-ideas: there is a potential race condition between calling the readdir and the stat, like if the object is removed between calls. Consider what to do here, maybe return None for all st_* fields on stat() error?
 * Test performance of pattern param on Windows versus fnmatch filtering afterwards.
 * Add tests, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
