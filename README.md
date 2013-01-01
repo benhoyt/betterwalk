@@ -70,7 +70,7 @@ Debian 2.6.32 32 bit        2.6 32 bit        1.6            1.5
 Ubuntu 12.04 64 bit VBox    2.7 64 bit        1.5            1.3
 Ubuntu 12.04 64 bit VBox    3.2 64 bit        1.7            1.4
 
-Mac OS X TODO               2.7 64 bit        TODO
+Mac OS X 10.7.5             2.7 64 bit        1.6            1.3
 ```
 
 Originally I was benchmarking against the actual `os.walk()`, but that uses
@@ -152,7 +152,7 @@ To-do
 -----
 
 * Windows FindFirst/Next wildcard matching is quirky (compared to fnmatch). From Random832 on python-ideas: it matches short filenames, the behavior you noted of "?" at the end of patterns also applies to the end of the 'filename portion' (e.g. foo?.txt can match foo.txt), and the behavior of patterns ending in ".*" or "." isn't like fnmatch. [This](http://digital.ni.com/public.nsf/allkb/0DBE16907A17717B86256F7800169797) and [this](http://blogs.msdn.com/b/oldnewthing/archive/2007/12/17/6785519.aspx) might be helpful.
-* From John Mulligan on python-ideas: there is a potential race condition between calling the readdir and the stat, like if the object is removed between calls. Consider what to do here, maybe return None for all st_* fields on stat() error?
+* From John Mulligan on python-ideas: there is a potential race condition between calling the readdir and the stat, like if the object is removed between calls. Consider what to do here, maybe return None for all st_* fields on stat() error? See also "This race isn't the only reason that stat can fail" message from Andrew Barnert.
 * Test performance of pattern param on Windows versus fnmatch filtering afterwards.
 * Add tests, especially for [reparse points / Win32 symbolic links](http://mail.python.org/pipermail/python-ideas/2012-November/017794.html)
 * Consider adding "pattern" parameter to `walk()`, per Todd Whiteman
