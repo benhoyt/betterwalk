@@ -1,5 +1,10 @@
-BetterWalk, a better and faster os.walk() for Python
-====================================================
+BetterWalk, a better and faster os.walk() for Python [deprecated, see "scandir" project]
+========================================================================================
+
+**This project has been deprecated in favour of [scandir](https://github.com/benhoyt/scandir),
+which has a better API and is more likely to be included in the standard library.**
+See also [Python Issue 11406](http://bugs.python.org/issue11406) and the
+[python-dev thread](http://mail.python.org/pipermail/python-dev/2013-May/126119.html) I started.
 
 BetterWalk is a somewhat better and significantly faster version of Python's
 `os.walk()`, as well as a generator version of `os.listdir()`.
